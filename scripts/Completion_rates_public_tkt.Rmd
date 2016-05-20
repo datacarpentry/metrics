@@ -1,0 +1,219 @@
+---
+title: "Non-teaching rate"
+author: "Erin Becker"
+date: "May 18, 2016"
+output: 
+  html_document:
+    toc: yes
+---
+
+```{r global-options, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      eval = TRUE)
+```
+
+## Instructor and trainee involvement in workshops
+
+This analysis is meant to answer questions about the extent of the non-teaching instructor and the 
+non-certified trainee issues.
+
+**Analysis and Data Files**
+
+The RMarkdown that generated this document: [Completion_rates.Rmd]()  
+The data: In [https://github.com/datacarpentry/metrics/tree/master/instructor_data](https://github.com/datacarpentry/metrics/tree/master/instructor_data) the files [instructor_data_5_17_16_no_ids.csv](https://raw.githubusercontent.com/datacarpentry/metrics/master/instructor_data/instructor_data_5_17_16_no_ids.csv) and [trainee_data_5_18_16_no_ids.csv]("https://raw.githubusercontent.com/datacarpentry/metrics/master/instructor_data/trainee_data_5_18_16_no_ids.csv")
+
+**Questions**  
+
+Questions to be answered include: 
+
+1) What percent of fully certified instructors haven't taught?  
+    - Overall  
+    - Only those > 1 year past training  
+2) What percent of one-time instructors have only taught at their home institution?
+3) What percent of trainees haven't finished checkout within 90 days of training?  
+    - Including online trainees
+    - Excluding online trainees
+
+Data was collected from AMY database (instructor completion) and Google sheet (trainee completion) by `Greg Wilson` on `5/17/16`.
+
+*Note: This data can not answer Question #2.*
+
+Definitions:  
+*Trainee* - person who has gone through instructor training but may not have completed checkout.  
+*Instructor* - person who has gone through both instructor training and checkout.
+
+## Trainee completion rate
+
+```{r get-trainee-data}
+trainees = read.csv("https://raw.githubusercontent.com/datacarpentry/metrics/master/instructor_data/trainee_data_5_18_16_no_ids.csv", stringsAsFactors = FALSE)
+trainees$End.Date = as.Date(trainees$End.Date, format = "%m/%d/%Y")
+date_pulled = as.Date('2016-5-17')
+trainees$Days.Since = date_pulled - trainees$End.Date # differs slightly from Greg's calculated "day's since" - mine counts from completion date
+trainees$percent = round(trainees$Completed/trainees$Participants*100,2)
+```
+
+```{r over-90-days}
+# looking only at trainings from at least 90 days ago
+trainees_old = trainees[which(trainees$Days.Since >= 90),]
+perc_co_overall = round(sum(trainees_old$Completed)/sum(trainees_old$Participants)*100,2)
+
+# looking only at online trainings
+trainees_online = trainees_old[grep("online",trainees_old$Class),]
+perc_co_online = round(sum(trainees_online$Completed)/sum(trainees_online$Participants)*100,2)
+
+# looking only at in-person trainings
+trainees_in_person = trainees_old[grep("online",trainees_old$Class, invert = TRUE),]
+perc_co_in_person = round(sum(trainees_in_person$Completed)/sum(trainees_in_person$Participants)*100,2)
+```
+
+Looking only at training sessions from at least 90 days ago:  
+- overall completion **`r perc_co_overall`%**  
+- in person completion **`r perc_co_in_person`%**  
+- online completion **`r perc_co_online`%**. (Two events, 63% and 31%).  
+
+Most (10/14) in person events have >65% completion rate. Some (Arlington, OK, Melbourne, Florida) much lower.
+
+**Takeaway:** Overall, online sessions didn't have a noticably lower completion rate than in-person sessions, but this appears to be due to a few in-person sessions have very low completion rates.  
+
+Some other events do not look on track to meeting normal completion rates (e.g. UCDavis - 84 days, 39%; UW - 68 days, 14%). More follow-up with these participants likely needed.
+
+*Wonder whether these abnormal rates are due to issues with local community, issues with how training session went, or some other factor.*
+
+Summary of completion rates per event:
+```{r summary-trainee}
+summary(trainees_old$percent)
+```
+Note that mean completion rate for individual events is **not** the same as mean overall completion rate, as the number of participants per event varies.
+
+## Instructor teaching rate
+
+```{r get-instructor-data}
+instructors = read.csv("https://raw.githubusercontent.com/datacarpentry/metrics/master/instructor_data/instructor_data_5_17_16_no_ids.csv", stringsAsFactors=FALSE)
+instructors$Date = as.Date(instructors$Date)
+instructors$Certified = as.Date(instructors$Certified)
+```
+
+```{r percent-not-teaching}
+date_pulled = as.Date('2016-5-17') # should be date data pulled
+year_ago = date_pulled - 366 # leap year
+
+# instructors trained over a year ago
+old_inst = instructors[which(instructors$Certified < year_ago),]
+names_old_inst = unique(old_inst$Person)
+
+# non-teaching instructors
+all_non_teach = instructors[which(is.na(instructors$Date)),]
+names_all_non_teach = unique(all_non_teach$Person)
+
+# non-teaching old instructors
+non_teach_old = old_inst[which(is.na(old_inst$Date)),]
+names_non_teach_old = unique(non_teach_old$Person)
+
+# percent of instructors trained over 1 year ago that haven't taught
+perc_no_teach = round(length(names_non_teach_old)/length(names_old_inst)*100,2)
+```
+
+What percent of instructors trained over a year ago haven't yet taught?  
+Trained over one year ago: **`r length(names_old_inst)`**  
+Of which, haven't taught:  **`r length(names_non_teach_old)`**  
+This is **`r perc_no_teach`%**.
+
+What percent of total instructors haven't taught?  
+Total trained: **`r length(unique(instructors$Person))`**  
+Haven't taught: **`r length(names_all_non_teach)`**  
+This is **`r round(length(names_all_non_teach)/length(unique(instructors$Person))*100,2)`%**.
+
+```{r within-last-year}
+# instructors trained within last year
+new_inst = instructors[which(instructors$Certified > year_ago),]
+names_new_inst = unique(new_inst$Person)
+
+# non-teaching new instructors
+non_teach_new = new_inst[which(is.na(new_inst$Date)),]
+names_non_teach_new = unique(non_teach_new$Person)
+
+# percent of instructors trained in last year who have taught
+perc_new_non_teach = round(length(names_non_teach_new)/length(names_new_inst)*100,2)
+perc_new_teach = 100-perc_new_non_teach
+```
+
+What percent of instructors trained within the past year haven't yet taught?  
+Trained within last year: **`r length(names_new_inst)`**  
+Of which, haven't taught: **`r length(names_non_teach_new)`**  
+This is **`r perc_new_non_teach`%**. (But many of these may have been trained very recently.)
+
+```{r taught-first-year}
+
+# Test whether dates are in ascending order for each instructor
+# remove instructors who haven't taught
+inst_teach = instructors[which(is.na(instructors$Date) == FALSE),]
+uniq_teach = unique(inst_teach$Person) # only teaching instructors
+for(i in uniq_teach) {
+  rows = inst_teach[which(inst_teach$Person == i),]
+  test = identical(sort(rows$Date), rows$Date)
+  if(test == FALSE) print(i)
+} 
+
+# grab first line for each person (first teaching)
+uniq_inst = unique(instructors$Person) # all instructors
+first_teaching = data.frame()
+for(i in uniq_inst) {
+  rows = instructors[which(instructors$Person == i),]
+  first_teaching = rbind(rows[1,], first_teaching)
+  first_teaching
+}
+
+# calculate time between certification and first teaching and add to df
+# note some taught before certification
+first_teaching$lag = as.numeric(first_teaching$Date - first_teaching$Certified)
+first_teaching$num_days = as.numeric(date_pulled - first_teaching$Certified)
+
+# count number who took longer than 1 year to teach
+slow_teach = length(which(first_teaching$lag > 366))
+no_teach = length(which(is.na(first_teaching$lag) & first_teaching$num_days > 366))
+total_opt = length(which(is.na(first_teaching$lag) == FALSE)) + no_teach
+```
+
+What percent of instructors teach within their first year?  
+Took longer than one year to teach: **`r slow_teach`**  
+Haven't taught (been over a year since training): **`r no_teach`**  
+Total percent who didn't teach within first year: **`r round(sum(slow_teach + no_teach)/total_opt*100,2)`%**
+
+What is the distribution of time to first teaching? 
+```{r plots-time-to-teach}
+plot(density(na.exclude(first_teaching$lag)), main = "Days between training and teaching")
+```
+
+Note that many (`r (length(which(first_teaching$lag < 0)))`) instructors taught their first workshop before they were officially certified.
+
+Excluding them:  
+```{r plots-time-to-teach-pos}
+pos_time = first_teaching[which(first_teaching$lag >0),]
+plot(density(pos_time$lag), main = "Days between training and teaching (non-retroactive)")
+```
+
+Summary of time to teach first workshop (non-retroactive):  
+```{r summary-instructors}
+summary(pos_time$lag)
+```
+
+Are recently trained instructors on track to meet normal teaching rates?   
+Overall, half of instructors teach w/in ``r median(pos_time$lag)`` days.
+
+```{r on-track}
+# trainees trained between 95-120 days ago
+recent_train = first_teaching[which(first_teaching$num_days < 120 & first_teaching$num_days > 95 ),]
+recent_no_teach = length(which(is.na(recent_train$lag)))
+```
+
+Trained between 95-120 days ago: **`r nrow(recent_train)`**  
+Of which, haven't taught: **`r recent_no_teach`**  
+This is **`r round(recent_no_teach/nrow(recent_train)*100,2)`%**.  
+
+Recent batch of trainees appear to be on track.  
+
+## Conclusions
+Online training sessions do **not** appear to have lower completion rates than in-person sessions. Completion rates are quite variable between training sessions. This may indicate greater follow-up needed. Overall completion rates ~55%. 
+
+Most instructors (~85%) teach within their first year. About half teach within 100 days. Current group of trainees is on track to meet that target.
+
